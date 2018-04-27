@@ -14,19 +14,16 @@ static NSString *const FLDefaultRouteSchema = @"FLRoute";
 
 @implementation FLRouter
 
++ (instancetype)shareInstance {
+    static FLRouter *s_route = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        s_route = [[FLRouter alloc] init];
+    });
+    return s_route;
+}
+
 + (id)openURL:(NSString *)url arg:(NSDictionary *)arg error:(NSError **)error completion:(id)completion {
-    
-//    if ([url rangeOfString:@"FLAAPI"].location != NSNotFound) {
-//        Class B = NSClassFromString(@"FLAAPI");
-//        SEL selector = NSSelectorFromString(@"presentAVC");
-//        [B performSelector:selector withObject:nil];
-//    }else {
-//        Class B = NSClassFromString(@"FLBAPI");
-//        SEL selector = NSSelectorFromString(@"presentBVC");
-//        [B performSelector:selector withObject:nil];
-//    }
-//
-//    return nil;
     NSArray *tmpArray = [self generateURL:url];
     NSString *targetName;
     NSString *actionName;
@@ -46,12 +43,17 @@ static NSString *const FLDefaultRouteSchema = @"FLRoute";
     if (!actionName) {
         NSLog(@"找不到 actionName");
     }
-    
-
+    NSMutableDictionary *params = [NSMutableDictionary dictionaryWithDictionary:arg];
+    if (getParams) {
+        [params addEntriesFromDictionary:[self generateParamsString:getParams]];
+    }
+    NSLog(@"%@",params);
     Class target = NSClassFromString(targetName);
     SEL selector = NSSelectorFromString(actionName);
     if ([target respondsToSelector:selector]) {
-        [target performSelector:selector withObject:nil];
+        [self safePerformAction:selector target:target params:params];
+//        [target performSelector:selector withObject:nil];
+//        [self safePerformAction:selector target:target params:params];
     }else {
         NSLog(@"路径有误 target: %@ , action: %@",targetName,actionName);
     }
@@ -70,81 +72,85 @@ static NSString *const FLDefaultRouteSchema = @"FLRoute";
         NSInteger numbers = [match numberOfRanges];
         for (NSInteger i = 0; i < numbers; i ++) {
             NSString *tmpGroup = [url substringWithRange:[match rangeAtIndex:i]];
-            NSLog(@"%@", tmpGroup);
+            NSLog(@"匹配到 %@", tmpGroup);
             [tmpArray addObject:tmpGroup];
         }
     }
     return tmpArray;
 }
 
++ (NSDictionary *)generateParamsString:(NSString *)paramString {
+    NSMutableDictionary *params = [NSMutableDictionary dictionary];
+    NSArray *components = [paramString componentsSeparatedByString:@"&"];
+    for (NSString *tmpStr in components) {
+        NSArray *tmpArray = [tmpStr componentsSeparatedByString:@"="];
+        if (tmpArray.count == 2) {
+            [params setObject:tmpArray[1] forKey:tmpArray[0]];
+        }else {
+            NSLog(@"参数不合法 : %@",tmpStr);
+        }
+    }
+    
+    return params;
+}
+
 //url 解析  解析答 target 和  action 然后动态调用 -
 //如果 解析到的是 http:
 
-- (id)safePerformAction:(SEL)action target:(NSObject *)target params:(NSDictionary *)params
++ (id)safePerformAction:(SEL)action target:(id)target params:(NSDictionary *)params
 {
     NSMethodSignature* methodSig = [target methodSignatureForSelector:action];
     if(methodSig == nil) {
         return nil;
     }
     const char* retType = [methodSig methodReturnType];
-    
-    if (strcmp(retType, @encode(void)) == 0) {
-        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSig];
+    NSUInteger count =  [methodSig numberOfArguments];
+    NSLog(@"方法的 参数个数 - %zd",count);
+    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSig];
+    if (count >= 3) {
         [invocation setArgument:&params atIndex:2];
-        [invocation setSelector:action];
-        [invocation setTarget:target];
+    }else {
+        NSLog(@"Action：%@ 参数过多:%@",NSStringFromSelector(action),params);
+    }
+    [invocation setSelector:action];
+    [invocation setTarget:target];
+    if (strcmp(retType, @encode(void)) == 0) {
         [invocation invoke];
         return nil;
     }
-    
+
     if (strcmp(retType, @encode(NSInteger)) == 0) {
-        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSig];
-        [invocation setArgument:&params atIndex:2];
-        [invocation setSelector:action];
-        [invocation setTarget:target];
         [invocation invoke];
         NSInteger result = 0;
         [invocation getReturnValue:&result];
         return @(result);
     }
-    
+
     if (strcmp(retType, @encode(BOOL)) == 0) {
-        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSig];
-        [invocation setArgument:&params atIndex:2];
-        [invocation setSelector:action];
-        [invocation setTarget:target];
         [invocation invoke];
         BOOL result = 0;
         [invocation getReturnValue:&result];
         return @(result);
     }
-    
+
     if (strcmp(retType, @encode(CGFloat)) == 0) {
-        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSig];
-        [invocation setArgument:&params atIndex:2];
-        [invocation setSelector:action];
-        [invocation setTarget:target];
         [invocation invoke];
         CGFloat result = 0;
         [invocation getReturnValue:&result];
         return @(result);
     }
-    
+
     if (strcmp(retType, @encode(NSUInteger)) == 0) {
-        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSig];
-        [invocation setArgument:&params atIndex:2];
-        [invocation setSelector:action];
-        [invocation setTarget:target];
         [invocation invoke];
         NSUInteger result = 0;
         [invocation getReturnValue:&result];
         return @(result);
     }
-    
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     return [target performSelector:action withObject:params];
 #pragma clang diagnostic pop
+    return nil;
 }
 
 

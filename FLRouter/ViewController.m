@@ -27,7 +27,7 @@
 }
 
 - (void)btnAction:(UIButton *)sender {
-    [FLRouter openURL:@"route://FLBAPI/presentBVC?username=10" arg:nil error:nil completion:nil];
+    [FLRouter openURL:@"route://FLBAPI/presentBVC?username=10" arg:@{@"userid":@"123"} error:nil completion:nil];
 }
 
 

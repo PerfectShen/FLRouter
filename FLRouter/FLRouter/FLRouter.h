@@ -10,6 +10,8 @@
 
 @interface FLRouter : NSObject
 
++ (instancetype)shareInstance;
+
 //路由
 + (id)openURL:(NSString *)url arg:(NSDictionary *)arg error:(NSError **)error completion:(id)completion;
 @end

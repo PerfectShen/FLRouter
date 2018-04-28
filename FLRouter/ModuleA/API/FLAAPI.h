@@ -10,5 +10,7 @@
 
 @interface FLAAPI : NSObject
 
-+ (void)presentAVC;
++  (void)presentAVC;
+
+- (id)homeViewControlller:(id)params;
 @end
